@@ -1,0 +1,14 @@
+/* src/App.css */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Roboto', sans-serif; /* Ou sua fonte preferida, como Arial */
+  background-color: #f5f7fa; /* Garante uma cor de fundo consistente */
+}
+
+/* Para garantir que o link não tenha sublinhado por padrão */
+a {
+  text-decoration: none;
+  color: inherit;
+}

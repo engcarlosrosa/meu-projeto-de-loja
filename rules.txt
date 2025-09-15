@@ -1,0 +1,109 @@
+rules_version = '2';service cloud.firestore {match /databases/{database}/documents {// =================================
+//  Helper Functions
+// =================================
+function isAuthenticated() {
+  return request.auth != null;
+}
+
+function getUserData() {
+  return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+}
+
+function isAdmin() {
+  return isAuthenticated() && getUserData().role == 'admin';
+}
+
+function isFinanceOrAdmin() {
+  return isAuthenticated() && (getUserData().role == 'admin' || getUserData().role == 'finance');
+}
+
+// CORREÇÃO: A lógica agora permite que um admin acesse qualquer loja,
+// independentemente do seu próprio 'storeId'.
+function isUserFromStore(storeId) {
+  return isAdmin() || (isAuthenticated() && getUserData().storeId == storeId);
+}
+
+// =================================
+//  Collection Rules
+// =================================
+
+match /users/{userId} {
+  allow get: if isAuthenticated() && (isAdmin() || request.auth.uid == userId);
+  allow list: if isAuthenticated();
+  allow create: if isAuthenticated() && request.auth.uid == userId;
+  allow update: if isAuthenticated() && (isAdmin() || request.auth.uid == userId);
+  allow delete: if isAdmin();
+
+  // Regra para a subcoleção de desempenho
+  match /performance/{performanceId} {
+    allow read, write: if isFinanceOrAdmin();
+  }
+}
+
+match /customers/{customerId} {
+  allow read, list: if isAuthenticated();
+  allow create: if isAuthenticated();
+  allow update, delete: if isAuthenticated() && (getUserData().role == 'admin' || getUserData().role == 'manager');
+}
+
+match /stores/{storeId} {
+  allow read: if isAuthenticated();
+  allow write: if isAdmin();
+}
+
+match /product_attributes/{docId} {
+    allow read: if isAuthenticated();
+    allow write: if isFinanceOrAdmin();
+}
+
+match /suppliers/{supplierId} {
+    allow read, write: if isFinanceOrAdmin();
+}
+
+match /products/{productId} {
+  allow read: if isAuthenticated() && (isFinanceOrAdmin() || getUserData().storeId in resource.data.storeIds);
+  allow write: if isAdmin();
+  allow update: if isAuthenticated();
+}
+
+match /purchases/{purchaseId} {
+  allow read, write: if isFinanceOrAdmin();
+}
+
+match /stock_counts/{countId} {
+  allow read, create, update: if isAuthenticated() && (getUserData().role == 'admin' || getUserData().role == 'manager');
+}
+
+match /bankAccounts/{accountId} {
+  allow read, update: if isAuthenticated();
+  allow create, delete: if isFinanceOrAdmin();
+}
+
+match /transactions/{transactionId} {
+  allow create: if isAuthenticated();
+  allow read, delete, update: if isFinanceOrAdmin();
+}
+
+match /accountsPayable/{payableId} {
+  allow read, write: if isFinanceOrAdmin();
+}
+
+match /revenues/{revenueId} {
+  allow read, write: if isFinanceOrAdmin();
+}
+
+match /stores/{storeId}/cash_register_sessions/{sessionId} {
+  allow read, write: if isUserFromStore(storeId);
+}
+
+match /artifacts/{appId}/stores/{storeId} {
+    match /sales/{saleId} {
+        allow read: if isUserFromStore(storeId) || isFinanceOrAdmin();
+        allow create, update: if isUserFromStore(storeId);
+    }
+    match /settings/{docId} { // General settings rule
+        allow read: if isUserFromStore(storeId);
+        allow write: if isFinanceOrAdmin();
+    }
+}
+}}
